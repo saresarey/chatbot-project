@@ -1,35 +1,41 @@
-# 🤖 RAG Tabanlı Çoklu-Model Doküman Asistanı
+# 🤖 Çoklu Model Doküman Asistanı (Hybrid RAG Chatbot)
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B)
-![LangChain](https://img.shields.io/badge/LangChain-RAG-green)
-![Gemini](https://img.shields.io/badge/Google-Gemini%201.5-yellow)
+**Ders:** MTH 409 - Üretken Yapay Zeka Yardımı ile Chatbot Geliştirme Temelleri  
+**Öğrenci:** Rahmet Sare Yılmaz  
+**Tarih:** 02.01.2026
 
-Bu proje, **"Üretken Yapay Zeka ile Chatbot Geliştirme"** dersi kapsamında hazırlanmış, kullanıcıların yüklenen PDF dokümanları ile doğal dilde sohbet etmesini sağlayan gelişmiş bir yapay zeka asistanıdır.
+![Python](https://img.shields.io/badge/Python-3.12-blue) ![Streamlit](https://img.shields.io/badge/Streamlit-1.41-red) ![LangChain](https://img.shields.io/badge/LangChain-Hybrid-green)
 
-Proje, **RAG (Retrieval-Augmented Generation)** mimarisini kullanarak modelin halüsinasyon görmesini engeller ve sadece dokümandaki verilere dayalı cevaplar üretir. Ayrıca kullanıcıya **Google Gemini** ve **OpenAI GPT** modelleri arasında seçim yapma imkanı sunar.
+## 📄 Proje Hakkında
+Bu proje, kullanıcıların yüklediği PDF dokümanları üzerinden doğal dilde soru-cevap yapabilen akıllı bir asistandır.
+
+Proje, **RAG (Retrieval-Augmented Generation)** mimarisini kullanır. Ancak standart RAG uygulamalarından farklı olarak **Hibrit (Hybrid)** bir yapıya sahiptir:
+1.  **Hafıza (Embedding):** Maliyet ve API hız sınırlarını (Rate Limit) aşmak için yerel işlemci gücü (**HuggingFace - Local CPU**) kullanılır.
+2.  **Zeka (LLM):** Cevap üretmek için Google'ın **Gemini-Pro** modeli kullanılır.
+
+Bu sayede proje hem **ücretsiz** hem de **yüksek performanslı** çalışır.
 
 ## 🚀 Özellikler
+* **PDF Analizi:** Kullanıcı kendi PDF dosyasını yükleyebilir.
+* **Vektör Veritabanı:** Dokümanlar parçalanarak ChromaDB üzerinde vektörel olarak saklanır.
+* **Kaynak Gösterimi:** Bot, verdiği cevabı dokümanın hangi sayfasından aldığını gösterir.
+* **Sohbet Yeteneği:** Sadece teknik sorulara değil, selamlaşma ve vedalaşma gibi sosyal etkileşimlere de cevap verir.
+* **Çoklu Model Desteği:** Altyapı hem Google Gemini hem de OpenAI GPT modellerini destekler.
 
-* **📄 Doküman Analizi:** PDF dosyalarını (Örn: One Piece Wiki, Makaleler) okur, parçalar ve vektörize eder.
-* **🧠 Çoklu Model Desteği:** Kullanıcı, arayüz üzerinden **Google Gemini 1.5 Flash** (Ücretsiz/Hızlı) veya **OpenAI GPT-3.5** modellerinden birini seçebilir.
-* **🛡️ Halüsinasyon Önleme:** `temperature=0` ayarı ve özel sistem talimatları (System Prompt) ile modelin uydurma yapması engellenmiştir.
-* **⚡ Hızlı Erişim:** ChromaDB vektör veritabanı ve önbellekleme (Caching) sayesinde sorulara milisaniyeler içinde yanıt verir.
-* **💻 Kullanıcı Dostu Arayüz:** Streamlit ile geliştirilmiş modern ve sade bir web arayüzü.
+## 🛠️ Kullanılan Teknolojiler
+* **Python 3.12.8**
+* **Arayüz:** Streamlit
+* **Orkestrasyon:** LangChain
+* **LLM (Model):** Google Gemini Pro (`gemini-pro`)
+* **Embeddings (Vektör):** HuggingFace (`all-MiniLM-L6-v2`) - *Yerel ve Ücretsiz*
+* **Veritabanı:** ChromaDB
+* **Güvenlik:** Python-dotenv
 
-## 🎥 Proje Tanıtım Videosu
+## ⚙️ Kurulum
 
-Projenin nasıl çalıştığını, model geçişlerini ve soru-cevap performansını aşağıdaki videodan izleyebilirsiniz:
-
-[👉 **TANITIM VİDEOSUNU İZLEMEK İÇİN TIKLAYIN**](BURAYA_YOUTUBE_LINKINI_YAPISTIR)
-
----
-
-## 🛠️ Kurulum ve Çalıştırma
-
-Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin.
+Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin:
 
 ### 1. Projeyi Klonlayın
 ```bash
-git clone [https://github.com/saresarey/chatbot-project.git](https://github.com/saresarey/chatbot-project.git)
-cd chatbot-project
+git clone [https://github.com/kullaniciadi/proje-ismi.git](https://github.com/kullaniciadi/proje-ismi.git)
+cd proje-ismi
