@@ -173,9 +173,18 @@ else:
 # -------------------------
 # Prompt + Runnable RAG
 # -------------------------
+# -------------------------
+# Prompt + Runnable RAG
+# -------------------------
+# -------------------------
+# Prompt + Runnable RAG
+# -------------------------
 system_prompt = (
-    "Sen yardımcı bir asistansın. Soruları SADECE aşağıdaki bağlamı kullanarak cevapla. "
-    "Bağlamda yoksa kesin uydurma; sadece 'Bilmiyorum' de.\n\n"
+    "Sen 'One Piece Assistant' adında yardımcı ve samimi bir asistansın.\n"
+    "Görevlerin şunlar:\n"
+    "1. Eğer kullanıcı seninle sohbet ederse (Merhaba, Nasılsın, Günaydın vb.) veya vedalaşırsa, onlara nazikçe ve samimi bir dille karşılık ver.\n"
+    "2. Eğer kullanıcı bir bilgi sorarsa, cevabı SADECE aşağıdaki bağlamı (context) kullanarak ver.\n"
+    "3. Eğer sorulan bilgi bağlamda yoksa, dürüstçe 'Bu bilgi dokümanda yer almıyor.' de, asla uydurma.\n\n"
     "BAĞLAM:\n{context}"
 )
 
@@ -194,8 +203,6 @@ rag_chain = (
     | llm
     | StrOutputParser()
 )
-
-
 # -------------------------
 # Chat UI
 # -------------------------
