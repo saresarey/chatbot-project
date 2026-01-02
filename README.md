@@ -11,7 +11,7 @@ Bu proje, kullanıcıların yüklediği PDF dokümanları üzerinden doğal dild
 
 Proje, **RAG (Retrieval-Augmented Generation)** mimarisini kullanır. Ancak standart RAG uygulamalarından farklı olarak **Hibrit (Hybrid)** bir yapıya sahiptir:
 1.  **Hafıza (Embedding):** Maliyet ve API hız sınırlarını (Rate Limit) aşmak için yerel işlemci gücü (**HuggingFace - Local CPU**) kullanılır.
-2.  **Zeka (LLM):** Cevap üretmek için Google'ın **Gemini-Pro** modeli kullanılır.
+2.  **Zeka (LLM):** Cevap üretmek için Google'ın **Gemini 3.0 Flash (Preview)** modeli kullanılır.
 
 Bu sayede proje hem **ücretsiz** hem de **yüksek performanslı** çalışır.
 
@@ -26,7 +26,7 @@ Bu sayede proje hem **ücretsiz** hem de **yüksek performanslı** çalışır.
 * **Python 3.12.8**
 * **Arayüz:** Streamlit
 * **Orkestrasyon:** LangChain
-* **LLM (Model):** Google Gemini Pro (`gemini-pro`)
+* **LLM (Model):** Google Gemini 3.0 Flash Preview (gemini-3-flash-preview)
 * **Embeddings (Vektör):** HuggingFace (`all-MiniLM-L6-v2`) - *Yerel ve Ücretsiz*
 * **Veritabanı:** ChromaDB
 * **Güvenlik:** Python-dotenv
@@ -37,5 +37,5 @@ Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları i
 
 ### 1. Projeyi Klonlayın
 ```bash
-git clone [https://github.com/kullaniciadi/proje-ismi.git](https://github.com/kullaniciadi/proje-ismi.git)
+git clone [https://github.com/saresarey/chatbot-project.git](https://github.com/saresarey/chatbot-project.git)
 cd proje-ismi
