@@ -1,114 +1,229 @@
-import streamlit as st
 import os
+import hashlib
 from dotenv import load_dotenv
+import streamlit as st
 
-# --- 1. AYARLAR ---
-st.set_page_config(page_title="Çoklu Model Asistanı", layout="wide")
-load_dotenv()
-
-# PDF Dosya Adını Buraya Yaz
-PDF_DOSYA_ADI = "one_piece.pdf"
-
-# API Anahtarlarını Kontrol Et
-if not os.getenv("GOOGLE_API_KEY"):
-    st.error("❌ HATA: GOOGLE_API_KEY eksik!")
-    st.stop()
-    
-# OpenAI anahtarı yoksa sadece uyarı verelim, programı durdurmayalım (Gemini çalışsın diye)
-has_openai = os.getenv("OPENAI_API_KEY") is not None
-
-# --- 2. KÜTÜPHANELER ---
-# try-except bloğunu kaldırdık ki GERÇEK hatayı görelim
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from langchain_chroma import Chroma
-from langchain.chains.retrieval import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.embeddings import Embeddings
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+
+from sentence_transformers import SentenceTransformer
 
 
-# --- 3. YAN MENÜ (MODEL SEÇİMİ) ---
+# -------------------------
+# ENV + Streamlit config
+# -------------------------
+load_dotenv()
+st.set_page_config(page_title="Çoklu Model Doküman Asistanı (Hybrid)", layout="wide")
+
+DEFAULT_PDF = "one_piece.pdf"
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+has_gemini = bool(GOOGLE_API_KEY)
+has_openai = bool(OPENAI_API_KEY)
+
+
+# -------------------------
+# Helpers
+# -------------------------
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def save_uploaded_pdf(uploaded_file) -> tuple[str, str]:
+    data = uploaded_file.getbuffer().tobytes()
+    h = sha256_bytes(data)
+    path = f"/tmp/{h}_{uploaded_file.name}"
+    with open(path, "wb") as f:
+        f.write(data)
+    return path, h
+
+
+def load_default_pdf() -> tuple[str, str]:
+    if not os.path.exists(DEFAULT_PDF):
+        return "", ""
+    with open(DEFAULT_PDF, "rb") as f:
+        data = f.read()
+    return DEFAULT_PDF, sha256_bytes(data)
+
+
+def format_docs_for_prompt(docs) -> str:
+    parts = []
+    for d in docs:
+        page = d.metadata.get("page")
+        prefix = f"[Sayfa {page+1}] " if isinstance(page, int) else ""
+        parts.append(prefix + d.page_content)
+    return "\n\n".join(parts)
+
+
+def show_sources_ui(docs, max_chars: int = 350):
+    with st.expander("📚 Kullanılan Kaynak Parçalar"):
+        for i, d in enumerate(docs, start=1):
+            page = d.metadata.get("page")
+            page_str = f"Sayfa {page+1}" if isinstance(page, int) else "Sayfa ?"
+            snippet = d.page_content.strip().replace("\n", " ")
+            if len(snippet) > max_chars:
+                snippet = snippet[:max_chars] + "…"
+            st.markdown(f"**{i}. {page_str}** — {snippet}")
+
+
+# -------------------------
+# Local Embeddings (FREE)
+# -------------------------
+class LocalSentenceTransformerEmbeddings(Embeddings):
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        self.model = SentenceTransformer(model_name)
+
+    def embed_documents(self, texts):
+        vectors = self.model.encode(list(texts), normalize_embeddings=True)
+        return [v.tolist() for v in vectors]
+
+    def embed_query(self, text):
+        v = self.model.encode([text], normalize_embeddings=True)[0]
+        return v.tolist()
+
+
+@st.cache_resource
+def get_local_embeddings():
+    # İstersen daha iyi (ama daha ağır) model:
+    # "sentence-transformers/all-mpnet-base-v2"
+    return LocalSentenceTransformerEmbeddings("sentence-transformers/all-MiniLM-L6-v2")
+
+
+# -------------------------
+# Sidebar
+# -------------------------
 st.sidebar.title("⚙️ Ayarlar")
-st.sidebar.markdown("Cevap verecek yapay zeka modelini seç:")
 
 model_secimi = st.sidebar.radio(
-    "Model:",
-    ("Google Gemini 1.5 Flash", "OpenAI GPT-3.5 Turbo")
+    "Cevap Modeli:",
+    ("Gemini 3 Flash Preview", "OpenAI GPT-3.5 Turbo")
 )
 
-# Eğer OpenAI seçildiyse ama anahtar yoksa uyar
-if model_secimi == "OpenAI GPT-3.5 Turbo" and not has_openai:
-    st.sidebar.error("⚠️ OpenAI API Anahtarı bulunamadı! Gemini'ye geçiliyor.")
-    model_secimi = "Google Gemini 1.5 Flash"
+show_sources = st.sidebar.toggle("Kaynakları göster", value=True)
 
-# --- 4. RAG SİSTEMİ ---
+uploaded_file = st.sidebar.file_uploader("PDF yükle (opsiyonel)", type=["pdf"])
+
+pdf_path = ""
+pdf_hash = ""
+
+if uploaded_file is not None:
+    pdf_path, pdf_hash = save_uploaded_pdf(uploaded_file)
+else:
+    pdf_path, pdf_hash = load_default_pdf()
+    if not pdf_path:
+        st.sidebar.warning(f"Varsayılan PDF ({DEFAULT_PDF}) bulunamadı. Lütfen PDF yükleyin.")
+        st.stop()
+
+
+if model_secimi == "Gemini 3 Flash Preview":
+    if not has_gemini:
+        st.error("Gemini seçili ama GOOGLE_API_KEY yok. Lütfen .env ekleyin.")
+        st.stop()
+    # Düzelttiğimiz satır 
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0)
+
+# -------------------------
+# Build Retriever (cache)
+# -------------------------
 @st.cache_resource
-def setup_rag_system():
-    if not os.path.exists(PDF_DOSYA_ADI):
-        st.error(f"❌ '{PDF_DOSYA_ADI}' dosyası bulunamadı!")
-        return None
-
-    # A) PDF Yükle ve Parçala
-    loader = PyPDFLoader(PDF_DOSYA_ADI)
+def build_retriever(pdf_path: str, pdf_hash: str):
+    loader = PyPDFLoader(pdf_path)
     docs = loader.load()
+
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = splitter.split_documents(docs)
 
-    # B) Embedding (Google kullanmaya devam ediyoruz, ücretsiz ve hızlı)
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vectorstore = Chroma.from_documents(splits, embeddings)
-    retriever = vectorstore.as_retriever()
-    
-    return retriever
+    embeddings = get_local_embeddings()  # ✅ LOCAL / FREE
+    vectorstore = Chroma.from_documents(splits, embedding=embeddings)
+    return vectorstore.as_retriever(search_kwargs={"k": 4})
+retriever = build_retriever(pdf_path, pdf_hash)
 
-# Retriever'ı bir kez kur (Maliyetten tasarruf için)
-retriever = setup_rag_system()
 
-if retriever:
-    st.title("🤖 Çoklu Model Doküman Asistanı")
-    st.caption(f"Aktif Doküman: {PDF_DOSYA_ADI} | Seçili Model: {model_secimi}")
+# -------------------------
+# UI header
+# -------------------------
+st.title("One Piece Assistant")
+st.caption(f"Aktif Doküman: {os.path.basename(pdf_path)} | Seçili Model: {model_secimi}")
 
-    # --- 5. MODELİ AYARLA (Dinamik Kısım) ---
-    if model_secimi == "Google Gemini 1.5 Flash":
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
-    else:
-        # OpenAI Modelini Başlat
-        llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+# LLM seç
+llm = None
+if model_secimi == "Gemini 3 Flash Preview":
+    if not has_gemini:
+        st.error("Gemini seçili ama GOOGLE_API_KEY yok. Lütfen .env ekleyin.")
+        st.stop()
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0)
+else:
+    if not has_openai:
+        st.error("OpenAI seçili ama OPENAI_API_KEY yok. Lütfen .env ekleyin.")
+        st.stop()
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-    # Prompt (Talimat)
-    system_prompt = (
-        "Sen yardımcı bir asistansın. Soruları SADECE aşağıdaki bağlamı kullanarak cevapla. "
-        "Bilmiyorsan 'Bilmiyorum' de. "
-        "\n\n"
-        "{context}"
-    )
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", "{input}"),
-    ])
 
-    # Zinciri Oluştur
-    qa_chain = create_stuff_documents_chain(llm, prompt)
-    rag_chain = create_retrieval_chain(retriever, qa_chain)
+# -------------------------
+# Prompt + Runnable RAG
+# -------------------------
+system_prompt = (
+    "Sen yardımcı bir asistansın. Soruları SADECE aşağıdaki bağlamı kullanarak cevapla. "
+    "Bağlamda yoksa kesin uydurma; sadece 'Bilmiyorum' de.\n\n"
+    "BAĞLAM:\n{context}"
+)
 
-    # --- 6. SOHBET ARAYÜZÜ ---
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+prompt = ChatPromptTemplate.from_messages(
+    [("system", system_prompt), ("human", "{input}")]
+)
 
-    for msg in st.session_state.messages:
-        st.chat_message(msg["role"]).write(msg["content"])
+retriever_runnable = RunnableLambda(lambda q: retriever.invoke(q))
 
-    if user_input := st.chat_input("Sorunuzu yazın..."):
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        st.chat_message("user").write(user_input)
+rag_chain = (
+    {
+        "context": retriever_runnable | RunnableLambda(format_docs_for_prompt),
+        "input": RunnablePassthrough(),
+    }
+    | prompt
+    | llm
+    | StrOutputParser()
+)
 
-        with st.chat_message("assistant"):
-            try:
-                response = rag_chain.invoke({"input": user_input})
-                answer = response["answer"]
-                st.write(answer)
-                st.session_state.messages.append({"role": "assistant", "content": answer})
-            except Exception as e:
-                st.error(f"Hata: {e}")
+
+# -------------------------
+# Chat UI
+# -------------------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+user_input = st.chat_input("Sorunuzu yazın...")
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.chat_message("user").write(user_input)
+
+    with st.chat_message("assistant"):
+        try:
+            docs = retriever.invoke(user_input)
+            answer = rag_chain.invoke(user_input)
+            st.write(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
+
+            if show_sources:
+                show_sources_ui(docs)
+
+        except Exception as e:
+            st.error(f"Hata: {e}")
+            # OpenAI 429 gibi durumlarda kullanıcıya daha net anlat:
+            msg = str(e)
+            if "insufficient_quota" in msg or "You exceeded your current quota" in msg:
+                st.info("OpenAI API kotanız/billing yok. Ödev için seçenek dursun ama çalışması için billing gerekir. "
+                        "Gemini'yi seçebilir veya OpenAI için faturalandırma açabilirsiniz.")

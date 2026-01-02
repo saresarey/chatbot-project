@@ -31,5 +31,5 @@ Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları i
 
 ### 1. Projeyi Klonlayın
 ```bash
-git clone [https://github.com/saresarey/chatbotproject.git](https://github.com/saresarey/chatbotproject.git)
-cd chatbotproject
+git clone [https://github.com/saresarey/chatbot-project.git](https://github.com/saresarey/chatbot-project.git)
+cd chatbot-project
