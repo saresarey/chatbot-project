@@ -15,6 +15,10 @@ Proje, **RAG (Retrieval-Augmented Generation)** mimarisini kullanır. Ancak stan
 
 Bu sayede proje hem **ücretsiz** hem de **yüksek performanslı** çalışır.
 
+
+https://github.com/user-attachments/assets/9811d789-d8b9-4c7a-a21f-f43b57ebe3af
+
+
 ## 🚀 Özellikler
 * **PDF Analizi:** Kullanıcı kendi PDF dosyasını yükleyebilir.
 * **Vektör Veritabanı:** Dokümanlar parçalanarak ChromaDB üzerinde vektörel olarak saklanır.
