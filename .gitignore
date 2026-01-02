@@ -1,0 +1,10 @@
+# Python sanal ortam klasörleri
+venv/
+env/
+.env/
+.venv/
+
+# Gereksiz dosyalar
+__pycache__/
+*.pyc
+.DS_Store
