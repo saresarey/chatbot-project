@@ -1,7 +1,6 @@
 # 🤖 Çoklu Model Doküman Asistanı (Hybrid RAG Chatbot)
 
-**Ders:** MTH 409 - Üretken Yapay Zeka Yardımı ile Chatbot Geliştirme Temelleri  
-**Öğrenci:** Rahmet Sare Yılmaz  
+**Oluşturan** R. Sare Yılmaz  
 **Tarih:** 02.01.2026
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue) ![Streamlit](https://img.shields.io/badge/Streamlit-1.41-red) ![LangChain](https://img.shields.io/badge/LangChain-Hybrid-green)
