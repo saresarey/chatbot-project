@@ -1,3 +1,5 @@
+from typing import TypedDict, List
+from langgraph.graph import StateGraph, END
 import os
 import hashlib
 from dotenv import load_dotenv
@@ -8,21 +10,20 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.embeddings import Embeddings
+from langchain_core.documents import Document
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from sentence_transformers import SentenceTransformer
 
-
 # -------------------------
 # ENV + Streamlit config
 # -------------------------
 load_dotenv()
-st.set_page_config(page_title="Çoklu Model Doküman Asistanı (Hybrid)", layout="wide")
+st.set_page_config(page_title="Çoklu Model Doküman Asistanı (LangGraph)", layout="wide")
 
 DEFAULT_PDF = "one_piece.pdf"
 
@@ -39,15 +40,15 @@ has_openai = bool(OPENAI_API_KEY)
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
-
 def save_uploaded_pdf(uploaded_file) -> tuple[str, str]:
     data = uploaded_file.getbuffer().tobytes()
     h = sha256_bytes(data)
     path = f"/tmp/{h}_{uploaded_file.name}"
+    # Windows kullanıyorsan /tmp yerine os.getcwd() kullanmak daha güvenlidir, 
+    # ama şimdilik böyle bırakıyorum.
     with open(path, "wb") as f:
         f.write(data)
     return path, h
-
 
 def load_default_pdf() -> tuple[str, str]:
     if not os.path.exists(DEFAULT_PDF):
@@ -56,7 +57,6 @@ def load_default_pdf() -> tuple[str, str]:
         data = f.read()
     return DEFAULT_PDF, sha256_bytes(data)
 
-
 def format_docs_for_prompt(docs) -> str:
     parts = []
     for d in docs:
@@ -64,7 +64,6 @@ def format_docs_for_prompt(docs) -> str:
         prefix = f"[Sayfa {page+1}] " if isinstance(page, int) else ""
         parts.append(prefix + d.page_content)
     return "\n\n".join(parts)
-
 
 def show_sources_ui(docs, max_chars: int = 350):
     with st.expander("📚 Kullanılan Kaynak Parçalar"):
@@ -78,27 +77,26 @@ def show_sources_ui(docs, max_chars: int = 350):
 
 
 # -------------------------
-# Local Embeddings (FREE)
+# Local Embeddings (Sınırsız & Ücretsiz)
 # -------------------------
 class LocalSentenceTransformerEmbeddings(Embeddings):
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         self.model = SentenceTransformer(model_name)
 
     def embed_documents(self, texts):
+        # PDF parçalarını vektöre çevirir
         vectors = self.model.encode(list(texts), normalize_embeddings=True)
         return [v.tolist() for v in vectors]
 
     def embed_query(self, text):
+        # Sorunu vektöre çevirir
         v = self.model.encode([text], normalize_embeddings=True)[0]
         return v.tolist()
 
-
 @st.cache_resource
-def get_local_embeddings():
-    # İstersen daha iyi (ama daha ağır) model:
-    # "sentence-transformers/all-mpnet-base-v2"
+def get_embeddings():
+    # Tekrar yerel modele dönüyoruz
     return LocalSentenceTransformerEmbeddings("sentence-transformers/all-MiniLM-L6-v2")
-
 
 # -------------------------
 # Sidebar
@@ -111,7 +109,6 @@ model_secimi = st.sidebar.radio(
 )
 
 show_sources = st.sidebar.toggle("Kaynakları göster", value=True)
-
 uploaded_file = st.sidebar.file_uploader("PDF yükle (opsiyonel)", type=["pdf"])
 
 pdf_path = ""
@@ -126,13 +123,6 @@ else:
         st.stop()
 
 
-if model_secimi == "Gemini 3 Flash Preview":
-    if not has_gemini:
-        st.error("Gemini seçili ama GOOGLE_API_KEY yok. Lütfen .env ekleyin.")
-        st.stop()
-    # Düzelttiğimiz satır 
-    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0)
-
 # -------------------------
 # Build Retriever (cache)
 # -------------------------
@@ -144,65 +134,102 @@ def build_retriever(pdf_path: str, pdf_hash: str):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = splitter.split_documents(docs)
 
-    embeddings = get_local_embeddings()  # ✅ LOCAL / FREE
+    embeddings = get_embeddings() #isim değişti
     vectorstore = Chroma.from_documents(splits, embedding=embeddings)
     return vectorstore.as_retriever(search_kwargs={"k": 4})
+
 retriever = build_retriever(pdf_path, pdf_hash)
 
 
 # -------------------------
-# UI header
+# UI header & LLM Selection
 # -------------------------
-st.title("One Piece Assistant")
+st.title("One Piece Assistant 🏴‍☠️👒🍖 ")
 st.caption(f"Aktif Doküman: {os.path.basename(pdf_path)} | Seçili Model: {model_secimi}")
 
-# LLM seç
 llm = None
 if model_secimi == "Gemini 3 Flash Preview":
     if not has_gemini:
-        st.error("Gemini seçili ama GOOGLE_API_KEY yok. Lütfen .env ekleyin.")
+        st.error("Gemini seçili ama GOOGLE_API_KEY yok.")
         st.stop()
     llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0)
 else:
     if not has_openai:
-        st.error("OpenAI seçili ama OPENAI_API_KEY yok. Lütfen .env ekleyin.")
+        st.error("OpenAI seçili ama OPENAI_API_KEY yok.")
         st.stop()
     llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 
-# -------------------------
-# Prompt + Runnable RAG
-# -------------------------
-# -------------------------
-# Prompt + Runnable RAG
-# -------------------------
-# -------------------------
-# Prompt + Runnable RAG
-# -------------------------
-system_prompt = (
-    "Sen 'One Piece Assistant' adında yardımcı ve samimi bir asistansın.\n"
-    "Görevlerin şunlar:\n"
-    "1. Eğer kullanıcı seninle sohbet ederse (Merhaba, Nasılsın, Günaydın vb.) veya vedalaşırsa, onlara nazikçe ve samimi bir dille karşılık ver.\n"
-    "2. Eğer kullanıcı bir bilgi sorarsa, cevabı SADECE aşağıdaki bağlamı (context) kullanarak ver.\n"
-    "3. Eğer sorulan bilgi bağlamda yoksa, dürüstçe 'Bu bilgi dokümanda yer almıyor.' de, asla uydurma.\n\n"
-    "BAĞLAM:\n{context}"
-)
+# ==========================================
+# LANGGRAPH YAPISI (YENİ EKLENEN KISIM)
+# ==========================================
 
-prompt = ChatPromptTemplate.from_messages(
-    [("system", system_prompt), ("human", "{input}")]
-)
+# 1. State (Durum) Tanımlaması
+class GraphState(TypedDict):
+    question: str
+    generation: str
+    documents: List[Document]
 
-retriever_runnable = RunnableLambda(lambda q: retriever.invoke(q))
+# 2. Node (Düğüm) Fonksiyonları
 
-rag_chain = (
-    {
-        "context": retriever_runnable | RunnableLambda(format_docs_for_prompt),
-        "input": RunnablePassthrough(),
-    }
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+def retrieve(state):
+    """
+    Belgeleri veritabanından çeker.
+    """
+    print("---RETRIEVE---")
+    question = state["question"]
+    documents = retriever.invoke(question)
+    return {"documents": documents, "question": question}
+
+def generate(state):
+    """
+    Belgeleri kullanarak cevabı üretir.
+    """
+    print("---GENERATE---")
+    question = state["question"]
+    documents = state["documents"]
+    
+    if llm is None:
+        return {"generation": "LLM yapılandırılmamış."}
+    
+    # Prompt Tanımı
+    system_prompt = (
+        "Sen 'One Piece Assistant' adında yardımcı bir asistansın.\n"
+        "Görevlerin:\n"
+        "1. Sohbet sorularına nazikçe cevap ver.\n"
+        "2. Bilgi sorularını SADECE aşağıdaki bağlamı kullanarak cevapla.\n"
+        "3. Bilgi yoksa 'Bilmiyorum' de.\n\n"
+        "BAĞLAM:\n{context}"
+    )
+    prompt = ChatPromptTemplate.from_messages(
+        [("system", system_prompt), ("human", "{input}")]
+    )
+    
+    # Zinciri oluştur
+    rag_chain = prompt | llm | StrOutputParser()
+    
+    # Context formatla ve çalıştır
+    context_text = format_docs_for_prompt(documents)
+    generation = rag_chain.invoke({"context": context_text, "input": question})
+    
+    return {"generation": generation}
+
+# 3. Grafiği İnşa Etme
+workflow = StateGraph(GraphState)
+
+# Düğümleri ekle
+workflow.add_node("retrieve", retrieve)
+workflow.add_node("generate", generate)
+
+# Kenarları (Bağlantıları) ekle
+workflow.set_entry_point("retrieve") # Başlangıç noktası
+workflow.add_edge("retrieve", "generate") # Retrieve bitince Generate'e git
+workflow.add_edge("generate", END) # Generate bitince Bitir
+
+# Grafiği derle
+app_graph = workflow.compile()
+
+
 # -------------------------
 # Chat UI
 # -------------------------
@@ -213,24 +240,33 @@ for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 user_input = st.chat_input("Sorunuzu yazın...")
+
 if user_input:
+    # Kullanıcı mesajını ekrana yaz
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.chat_message("user").write(user_input)
 
     with st.chat_message("assistant"):
         try:
-            docs = retriever.invoke(user_input)
-            answer = rag_chain.invoke(user_input)
+            # --- LANGGRAPH ÇALIŞTIRMA KISMI ---
+            inputs: GraphState = {
+                "question": user_input,
+                "documents": [],  # Başlangıçta boş, retrieve düğümü dolduracak
+                "generation": ""  # Başlangıçta boş, generate düğümü dolduracak
+            }
+
+            # invoke ile grafiği çalıştırıyoruz
+            result = app_graph.invoke(inputs)
+            
+            # Sonuçları al
+            answer = result["generation"]
+            source_docs = result["documents"]
+            
             st.write(answer)
             st.session_state.messages.append({"role": "assistant", "content": answer})
 
             if show_sources:
-                show_sources_ui(docs)
+                show_sources_ui(source_docs)
 
         except Exception as e:
             st.error(f"Hata: {e}")
-            # OpenAI 429 gibi durumlarda kullanıcıya daha net anlat:
-            msg = str(e)
-            if "insufficient_quota" in msg or "You exceeded your current quota" in msg:
-                st.info("OpenAI API kotanız/billing yok. Ödev için seçenek dursun ama çalışması için billing gerekir. "
-                        "Gemini'yi seçebilir veya OpenAI için faturalandırma açabilirsiniz.")

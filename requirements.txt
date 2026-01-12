@@ -5,6 +5,10 @@ langchain-community
 langchain-google-genai
 langchain-chroma
 langchain-text-splitters
+langchain
 pypdf
 chromadb
 langchain-openai
+sentence-transformers
+langsmith
+langgraph
