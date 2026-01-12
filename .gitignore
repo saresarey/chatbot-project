@@ -1,5 +1,6 @@
 # Python sanal ortam klasörleri
 venv/
+venvstore/
 env/
 .env/
 .venv/
