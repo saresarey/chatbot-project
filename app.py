@@ -36,51 +36,94 @@ st.set_page_config(
 # -------------------------
 # Özel Tasarım (Gemini/ChatGPT Tarzı)
 # -------------------------
+# Özel Tasarım (Modern Chat Görünümü)
+# -------------------------
+# -------------------------
+# Özel Tasarım (Going-Chaty Final Versiyon)
+# -------------------------
 st.markdown("""
 <style>
     /* Ana başlık rengi */
     h1 { color: #FF4B4B; }
     
-    /* Chat mesajları çerçevesi */
+    /* 1. Streamlit'in varsayılan arka planını ve sınırlarını yok et */
     .stChatMessage {
-        border: 1px solid #333; /* Hafif çerçeve */
-        border-radius: 12px;
-        padding: 15px;
+        background-color: transparent !important;
+        border: none !important;
     }
 
-    /* --- SIDEBAR TASARIMI --- */
+    /* 2. İKONLARI YOK ET (NUCLEAR OPTION) */
+    /* Avatar kapsayıcısını tamamen gizle */
+    [data-testid="stChatMessageAvatarContainer"] {
+        display: none !important;
+        width: 0px !important;
+    }
+
+    /* 3. Boşlukları Sıfırla */
+    /* Mesaj içeriğinin solundaki boşluğu al */
+    [data-testid="stChatMessageContent"] {
+        padding-left: 0px !important;
+        margin-left: 0px !important;
+    }
     
-    /* Sidebar'daki "Secondary" butonları (Geçmiş sohbetler) şeffaf yap */
+    /* 4. BALONCUK TASARIMLARI */
+    
+    /* Kullanıcı (Sağa Yaslı & Kırmızı) */
+    .user-container {
+        display: flex;
+        justify-content: flex-end; /* Sağa yasla */
+        width: 100%;
+    }
+    
+    .user-bubble {
+        background-color: #FF4B4B; 
+        color: white;
+        padding: 12px 18px;
+        border-radius: 18px 18px 0 18px; /* Sol alt köşe sivri */
+        max-width: 80%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+    
+    /* Asistan (Sola Yaslı & Gri) */
+    .bot-container {
+        display: flex;
+        justify-content: flex-start; /* Sola yasla */
+        width: 100%;
+    }
+    
+    .bot-bubble {
+        background-color: #f0f2f6; 
+        color: #31333F;
+        padding: 12px 18px;
+        border-radius: 18px 18px 18px 0; /* Sağ alt köşe sivri */
+        max-width: 80%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        font-size: 16px;
+        margin-bottom: 10px;
+        border: 1px solid #e5e5e5;
+    }
+    
+    /* Karanlık Mod için Bot Baloncuğu */
+    @media (prefers-color-scheme: dark) {
+        .bot-bubble {
+            background-color: #262730;
+            color: white;
+            border: 1px solid #444;
+        }
+    }
+    
+    /* Sidebar Butonları */
     section[data-testid="stSidebar"] .stButton button[kind="secondary"] {
         background-color: transparent;
         border: none;
-        text-align: left; /* Yazıyı sola yasla */
-        width: 100%;
-        color: inherit; /* Temaya uygun renk */
-        padding: 10px;
-        transition: all 0.2s ease; /* Yumuşak geçiş */
+        text-align: left;
+        color: inherit;
     }
-
-    /* Üzerine gelince (Hover) hafif gri/beyaz olsun */
     section[data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {
-        background-color: rgba(255, 255, 255, 0.1); /* Hafif aydınlatma */
-        padding-left: 15px; /* Hafif sağa kayma efekti */
+        background-color: rgba(255, 255, 255, 0.1);
         color: #FF4B4B;
-    }
-
-    /* "Yeni Sohbet" butonu (Primary) dikkat çekici kalsın */
-    section[data-testid="stSidebar"] .stButton button[kind="primary"] {
-        width: 100%;
-        border-radius: 20px;
-        font-weight: bold;
-    }
-    
-    /* Sidebar başlıklarını biraz küçültelim */
-    section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 {
-        font-size: 1rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        opacity: 0.7;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -322,48 +365,75 @@ app_graph = workflow.compile()
 # -------------------------
 st.title("Going-Chaty 👒🍖🏴‍☠️🍈☀️")
 
-# Mesajları Ekrana Yaz
+# --- GEÇMİŞ MESAJLARI YAZDIR ---
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+    # İŞTE SIR BURADA: avatar=None diyerek ikonu engelliyoruz
+    with st.chat_message(msg["role"], avatar=None):
+        if msg["role"] == "user":
+            st.markdown(f"""
+                <div class="user-container">
+                    <div class="user-bubble">{msg['content']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+                <div class="bot-container">
+                    <div class="bot-bubble">{msg['content']}</div>
+                </div>
+            """, unsafe_allow_html=True)
 
-# Kullanıcı Girdisi
+# --- YENİ MESAJ GİRİŞİ ---
 user_input = st.chat_input("Sorunuzu yazın...")
 
 if user_input:
-    # 1. Kullanıcı mesajını ekle ve göster
+    # 1. Mesajı listeye ekle
     st.session_state.messages.append({"role": "user", "content": user_input})
-    st.chat_message("user").write(user_input)
     
-    # 2. Geçmişi metne çevir (LLM için)
-    # Son mesajı hariç tutuyoruz ki tekrar etmesin (zaten input olarak gidiyor)
+    # 2. Ekrana hemen yazdır (Kullanıcı) - BURADA DA avatar=None ŞART
+    with st.chat_message("user", avatar=None):
+        st.markdown(f"""
+            <div class="user-container">
+                <div class="user-bubble">{user_input}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Geçmişi hazırla
     history_text = format_history_for_prompt(st.session_state.messages[:-1])
 
-    with st.chat_message("assistant"):
+    # 3. Cevap üret (Asistan) - BURADA DA avatar=None ŞART
+    with st.chat_message("assistant", avatar=None):
+        placeholder = st.empty() 
+        
         try:
             inputs: GraphState = {
                 "question": user_input,
                 "documents": [],
                 "generation": "",
-                "chat_history": history_text # <--- Geçmişi gönderiyoruz
+                "chat_history": history_text
             }
             
-            result = app_graph.invoke(inputs)
+            with st.spinner("Grand Line'da aranıyor..."):
+                result = app_graph.invoke(inputs)
             
             answer = result["generation"]
             source_docs = result["documents"]
             
-            st.write(answer)
+            # Cevabı bas
+            placeholder.markdown(f"""
+                <div class="bot-container">
+                    <div class="bot-bubble">{answer}</div>
+                </div>
+            """, unsafe_allow_html=True)
             
-            # 3. Cevabı kaydet
+            # Kaydet
             st.session_state.messages.append({"role": "assistant", "content": answer})
-            
-            # 4. Dosyaya Kalıcı Olarak Kaydet (JSON)
             save_chat_history(st.session_state.session_id, st.session_state.messages)
 
+            # Kaynaklar
             if show_sources and source_docs:
                 with st.expander("📚 Kaynaklar"):
                     for i, d in enumerate(source_docs, 1):
                         st.markdown(f"**{i}.** {d.page_content[:200]}...")
 
         except Exception as e:
-            st.error(f"Hata oluştu: {e}")
+            placeholder.error(f"Hata oluştu: {e}")
