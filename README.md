@@ -8,6 +8,13 @@
 ## 📄 Proje Hakkında
 Bu proje, kullanıcıların yüklediği PDF dokümanları üzerinden doğal dilde soru-cevap yapabilen akıllı bir asistandır.
 
+
+
+
+https://github.com/user-attachments/assets/c2a88028-8dc9-4213-afbe-5f45fca4afa1
+
+
+
 Proje, **RAG (Retrieval-Augmented Generation)** mimarisini kullanır. Ancak standart RAG uygulamalarından farklı olarak **Hibrit (Hybrid)** bir yapıya sahiptir:
 1.  **Hafıza (Embedding):** Maliyet ve API hız sınırlarını (Rate Limit) aşmak için yerel işlemci gücü (**HuggingFace - Local CPU**) kullanılır.
 2.  **Zeka (LLM):** Cevap üretmek için Google'ın **Gemini 3.0 Flash (Preview)** modeli kullanılır.
