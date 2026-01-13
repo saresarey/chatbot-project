@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import glob
+import random  
 from datetime import datetime
 from typing import TypedDict, List
 from dotenv import load_dotenv
@@ -23,115 +24,157 @@ from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
 
 # -------------------------
-# 1. TEMEL AYARLAR
+# 1. TEMEL AYARLAR VE "RUH" LİSTELERİ
 # -------------------------
 load_dotenv()
 st.set_page_config(
-    page_title="⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖",
+    page_title="Going-Chaty 𓊝",
     page_icon="🏴‍☠️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# --- RASTGELE EĞLENCE LİSTELERİ ---
+PIRATE_GREETINGS = [
+    "Yohoho! Hoş geldin Kaptan! 💀",
+    "Kaizoku ou ni ore wa naru! (Korsanlar Kralı olacağım!) 🍖",
+    "Oii, Luffy! Bugün nereye yelken açıyoruz? 🌊",
+    "Selamlar! Bugün deniz çok güzel, değil mi? ☀️",
+    "Tayfa hazır Kaptan, emirlerini bekliyoruz! 🏴‍☠️",
+    "Bugün macera kokusu alıyorum! 👃🍖"
+]
+
+LOADING_MESSAGES = [
+    "Log Pose ayarlanıyor... 🧭",
+    "Denizcilerden kaçıyorum... ⚓",
+    "Sanji mutfakta bir şeyler hazırlıyor... 🍳",
+    "Zoro yine kayboldu, onu arıyorum... ⚔️",
+    "Franky gemiyi tamir ediyor... 🔨",
+    "Nami haritaları kontrol ediyor... 🗺️",
+    "Robin antik metinleri okuyor... 📚",
+    "Usopp yalan... öhm, kahramanlık hikayesi anlatıyor... 🤥",
+    "Brook bir şarkı mırıldanıyor (gerçi dudağı yok ama)... 💀🎶",
+    "Deniz Canavarları ile boğuşuyorum... 🦑"
+]
+
 # -------------------------
-# Özel Tasarım (Gemini/ChatGPT Tarzı)
-# -------------------------
-# Özel Tasarım (Modern Chat Görünümü)
-# -------------------------
-# -------------------------
-# Özel Tasarım (Going-Chaty Final Versiyon)
+# 2. PREMIUM CSS TASARIMI
 # -------------------------
 st.markdown("""
 <style>
-    /* Ana başlık rengi */
-    h1 { color: #FF4B4B; }
-    
-    /* 1. Streamlit'in varsayılan arka planını ve sınırlarını yok et */
-    .stChatMessage {
-        background-color: transparent !important;
-        border: none !important;
+    /* Font ve Genel Stil */
+    html, body, [class*="css"] {
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
+    h1 { color: #FF4B4B; font-weight: 700; }
 
-    /* 2. İKONLARI YOK ET (NUCLEAR OPTION) */
-    /* Avatar kapsayıcısını tamamen gizle */
+    /* --- İKONLARI YOK ETME (AVATAR) --- */
     [data-testid="stChatMessageAvatarContainer"] {
         display: none !important;
-        width: 0px !important;
+    }
+    [data-testid="stChatMessageContent"] {
+        margin-left: 0px !important;
+        padding-left: 0px !important;
+    }
+    [data-testid="stChatMessage"] {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0px !important;
+        margin-top: 5px !important;
+        margin-bottom: 5px !important;
     }
 
-    /* 3. Boşlukları Sıfırla */
-    /* Mesaj içeriğinin solundaki boşluğu al */
-    [data-testid="stChatMessageContent"] {
-        padding-left: 0px !important;
-        margin-left: 0px !important;
-    }
-    
-    /* 4. BALONCUK TASARIMLARI */
-    
-    /* Kullanıcı (Sağa Yaslı & Kırmızı) */
+    /* --- BALONCUK TASARIMLARI --- */
     .user-container {
         display: flex;
-        justify-content: flex-end; /* Sağa yasla */
+        justify-content: flex-end;
         width: 100%;
     }
-    
     .user-bubble {
         background-color: #FF4B4B; 
         color: white;
         padding: 12px 18px;
-        border-radius: 18px 18px 0 18px; /* Sol alt köşe sivri */
+        border-radius: 20px 20px 4px 20px;
         max-width: 80%;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 16px;
-        margin-bottom: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        font-size: 15px;
+        line-height: 1.5;
     }
     
-    /* Asistan (Sola Yaslı & Gri) */
     .bot-container {
         display: flex;
-        justify-content: flex-start; /* Sola yasla */
+        justify-content: flex-start;
         width: 100%;
     }
-    
     .bot-bubble {
-        background-color: #f0f2f6; 
-        color: #31333F;
+        background-color: #f4f6f9; 
+        color: #2c3e50;
         padding: 12px 18px;
-        border-radius: 18px 18px 18px 0; /* Sağ alt köşe sivri */
+        border-radius: 20px 20px 20px 4px;
         max-width: 80%;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 16px;
-        margin-bottom: 10px;
-        border: 1px solid #e5e5e5;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        font-size: 15px;
+        line-height: 1.5;
+        border: 1px solid #e1e4e8;
     }
     
-    /* Karanlık Mod için Bot Baloncuğu */
     @media (prefers-color-scheme: dark) {
         .bot-bubble {
             background-color: #262730;
-            color: white;
+            color: #ececec;
             border: 1px solid #444;
         }
     }
-    
-    /* Sidebar Butonları */
-    section[data-testid="stSidebar"] .stButton button[kind="secondary"] {
-        background-color: transparent;
-        border: none;
+
+    /* --- SIDEBAR TASARIMI (KART GÖRÜNÜMÜ) --- */
+    section[data-testid="stSidebar"] button {
+        border-radius: 10px !important;
+        border: 1px solid rgba(0,0,0,0.1) !important;
+        transition: all 0.3s ease;
+        margin-bottom: 5px;
+    }
+
+    button[kind="secondary"] {
+        background-color: white; 
         text-align: left;
-        color: inherit;
+        padding-left: 15px;
+        font-weight: 500;
+        color: #444;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    section[data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {
-        background-color: rgba(255, 255, 255, 0.1);
-        color: #FF4B4B;
+    
+    @media (prefers-color-scheme: dark) {
+        button[kind="secondary"] {
+            background-color: #262730;
+            color: #ddd;
+            border: 1px solid #444 !important;
+        }
     }
+
+    button[kind="secondary"]:hover {
+        border-color: #FF4B4B !important;
+        color: #FF4B4B !important;
+        transform: translateX(3px); 
+    }
+
+    button[help="Ayarlar"] {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 1.2rem;
+        color: #888;
+    }
+    button[help="Ayarlar"]:hover {
+        color: #FF4B4B !important;
+        transform: none !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
 DEFAULT_PDF = "one_piece.pdf"
 HISTORY_FOLDER = "chat_history"
 
-# Klasör yoksa oluştur
 if not os.path.exists(HISTORY_FOLDER):
     os.makedirs(HISTORY_FOLDER)
 
@@ -141,25 +184,58 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 has_gemini = bool(GOOGLE_API_KEY)
 has_openai = bool(OPENAI_API_KEY)
 
-# -------------------------
-# 2. YARDIMCI FONKSİYONLAR (Storage & PDF)
-# -------------------------
-def save_chat_history(session_id, messages):
-    """Sohbeti JSON olarak kaydeder"""
-    filepath = os.path.join(HISTORY_FOLDER, f"{session_id}.json")
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(messages, f, ensure_ascii=False, indent=4)
 
-def load_chat_history(session_id):
-    """JSON'dan sohbeti yükler"""
+# -------------------------
+# 3. YARDIMCI FONKSİYONLAR
+# -------------------------
+def save_chat(session_id, messages, title=None):
+    filepath = os.path.join(HISTORY_FOLDER, f"{session_id}.json")
+    current_data = {"title": None, "messages": []}
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                if isinstance(loaded, list):
+                    current_data["messages"] = loaded
+                else:
+                    current_data = loaded
+        except:
+            pass
+
+    current_data["messages"] = messages
+    if title:
+        current_data["title"] = title
+    elif not current_data["title"] and messages:
+        first_msg = next((m["content"] for m in messages if m["role"] == "user"), "Yeni Sohbet")
+        current_data["title"] = (first_msg[:25] + '..') if len(first_msg) > 25 else first_msg
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(current_data, f, ensure_ascii=False, indent=4)
+
+def load_chat(session_id):
     filepath = os.path.join(HISTORY_FOLDER, f"{session_id}.json")
     if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return {"title": "Geçmiş Sohbet", "messages": data}
+                return data
+        except:
+            pass
+    return {"title": "Yeni Sohbet", "messages": []}
+
+def rename_chat(session_id, new_title):
+    data = load_chat(session_id)
+    data["title"] = new_title
+    save_chat(session_id, data["messages"], new_title)
+
+def delete_chat(session_id):
+    filepath = os.path.join(HISTORY_FOLDER, f"{session_id}.json")
+    if os.path.exists(filepath):
+        os.remove(filepath)
 
 def get_all_chats():
-    """Tüm kayıtlı sohbetleri listeler ve ilk mesajı başlık yapar"""
     files = glob.glob(os.path.join(HISTORY_FOLDER, "*.json"))
     chats = []
     for f in files:
@@ -167,20 +243,18 @@ def get_all_chats():
         timestamp = os.path.getctime(f)
         date_str = datetime.fromtimestamp(timestamp).strftime('%d.%m %H:%M')
         
-        # Dosyanın içini oku ve ilk mesajı al
+        title = "Yeni Sohbet"
         try:
             with open(f, "r", encoding="utf-8") as file:
                 data = json.load(file)
-                # İlk kullanıcı mesajını bul
-                first_msg = next((m["content"] for m in data if m["role"] == "user"), "Yeni Sohbet")
-                # Çok uzunsa kısalt (30 karakter)
-                title = (first_msg[:25] + '..') if len(first_msg) > 25 else first_msg
+                if isinstance(data, dict) and "title" in data:
+                    title = data["title"]
+                elif isinstance(data, list):
+                    first_msg = next((m["content"] for m in data if m["role"] == "user"), "Yeni Sohbet")
+                    title = (first_msg[:20] + '..') if len(first_msg) > 20 else first_msg
         except:
-            title = "Yeni Sohbet"
-
+            pass
         chats.append({"id": filename, "date": date_str, "title": title})
-    
-    # En yeniden eskiye sırala
     chats.sort(key=lambda x: x["date"], reverse=True)
     return chats
 
@@ -192,7 +266,6 @@ def format_docs_for_prompt(docs) -> str:
     return "\n\n".join(parts)
 
 def format_history_for_prompt(messages) -> str:
-    """Mesaj listesini LLM'in anlayacağı metne çevirir"""
     formatted = ""
     for msg in messages:
         role = "Kullanıcı" if msg["role"] == "user" else "Asistan"
@@ -200,16 +273,14 @@ def format_history_for_prompt(messages) -> str:
     return formatted
 
 # -------------------------
-# 3. EMBEDDINGS & RETRIEVER (Local)
+# 4. EMBEDDINGS & RETRIEVER
 # -------------------------
 class LocalSentenceTransformerEmbeddings(Embeddings):
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         self.model = SentenceTransformer(model_name)
-
     def embed_documents(self, texts):
         vectors = self.model.encode(list(texts), normalize_embeddings=True)
         return [v.tolist() for v in vectors]
-
     def embed_query(self, text):
         v = self.model.encode([text], normalize_embeddings=True)[0]
         return v.tolist()
@@ -220,8 +291,7 @@ def get_embeddings():
 
 @st.cache_resource
 def build_retriever(pdf_path: str):
-    if not os.path.exists(pdf_path):
-        return None
+    if not os.path.exists(pdf_path): return None
     loader = PyPDFLoader(pdf_path)
     docs = loader.load()
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -230,128 +300,120 @@ def build_retriever(pdf_path: str):
     vectorstore = Chroma.from_documents(splits, embedding=embeddings)
     return vectorstore.as_retriever(search_kwargs={"k": 4})
 
-# Retriever'ı başlat
 retriever = build_retriever(DEFAULT_PDF)
 
-# -------------------------
-# 4. SIDEBAR & SESSION MANAGEMENT
-# -------------------------
-st.sidebar.title("🗂️ Sohbet Geçmişi")
 
-# Session ID Kontrolü
+# -------------------------
+# 5. MENÜ VE SIDEBAR (MODAL/DIALOG İLE)
+# -------------------------
+
+@st.dialog("🏴‍☠️ Sohbet Seçenekleri")
+def options_menu(chat_id, current_title):
+    st.write(f"Düzenlenen: **{current_title}**")
+    new_name = st.text_input("Yeni İsim:", value=current_title)
+    col_save, col_del = st.columns(2)
+    with col_save:
+        if st.button("💾 Kaydet", type="primary", use_container_width=True):
+            rename_chat(chat_id, new_name)
+            st.rerun()
+    with col_del:
+        if st.button("🗑️ Sil", type="secondary", use_container_width=True):
+            delete_chat(chat_id)
+            if st.session_state.session_id == chat_id:
+                st.session_state.session_id = str(uuid.uuid4())
+                st.session_state.messages = []
+            st.rerun()
+
+# --- Sidebar Yapısı ---
+st.sidebar.title("Going-Chaty")
+
+# Anlık Durum (Ruh Katma Kısmı)
+locations = ["Wano Ülkesi", "Egghead Adası", "Thousand Sunny", "Denizci Üssü G-5", "Elbaf"]
+current_loc = random.choice(locations)
+st.sidebar.caption(f"📍 Konum: {current_loc}")
+
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
     st.session_state.messages = []
 
-# Yeni Sohbet Butonu
-if st.sidebar.button("﹏𓊝﹏ Yeni Sohbet Başlat", type="primary"):
+if st.sidebar.button("🧭 Yeni Macera (Sohbet)", type="primary"):
     st.session_state.session_id = str(uuid.uuid4())
     st.session_state.messages = []
     st.rerun()
 
-st.sidebar.divider()
+st.sidebar.markdown("---")
 
-# Eski Sohbetleri Listele
 previous_chats = get_all_chats()
-
-# Eğer hiç sohbet yoksa bilgi ver
 if not previous_chats:
-    st.sidebar.caption("Henüz geçmiş sohbet yok.")
+    st.sidebar.info("Henüz macera günlüğü boş.")
 
 for chat in previous_chats:
-    # Butonun üzerinde artık "Luffy kimdir?" gibi başlık yazacak
-    # Altına da küçük tarih ekliyoruz
-    label = f"{chat['title']}" 
-    
-    # kind="secondary" diyerek CSS'in bunu yakalamasını sağlıyoruz
-    if st.sidebar.button(label, key=chat['id'], use_container_width=True, type="secondary"):
-        st.session_state.session_id = chat['id']
-        st.session_state.messages = load_chat_history(chat['id'])
-        st.rerun()
+    col1, col2 = st.sidebar.columns([0.85, 0.15])
+    with col1:
+        if st.button(chat['title'], key=f"chat_{chat['id']}", use_container_width=True, type="secondary"):
+            st.session_state.session_id = chat['id']
+            loaded_data = load_chat(chat['id'])
+            st.session_state.messages = loaded_data["messages"]
+            st.rerun()
+    with col2:
+        if st.button("⋮", key=f"opt_{chat['id']}", help="Ayarlar"):
+            options_menu(chat['id'], chat['title'])
 
-# Ayarlar
-st.sidebar.divider()
-st.sidebar.subheader("⚙️ Ayarlar")
-model_secimi = st.sidebar.radio("Model:", ("Gemini 3 Flash Preview", "OpenAI GPT-3.5 Turbo"))
-show_sources = st.sidebar.toggle("Kaynakları göster", value=True)
+st.sidebar.markdown("---")
+with st.sidebar.expander("⚙️Gemi Ayarları"):
+    model_secimi = st.radio("Model:", ("Gemini 3 Flash Preview", "OpenAI GPT-3.5 Turbo"))
+    show_sources = st.toggle("Kaynakları göster", value=True)
 
-# LLM Seçimi
 llm = None
 if model_secimi == "Gemini 3 Flash Preview":
-    if not has_gemini:
-        st.error("Gemini API Key eksik!")
-        st.stop()
+    if not has_gemini: st.error("Gemini Key Yok!"); st.stop()
     llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0)
 else:
-    if not has_openai:
-        st.error("OpenAI API Key eksik!")
-        st.stop()
+    if not has_openai: st.error("OpenAI Key Yok!"); st.stop()
     llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 # -------------------------
-# 5. LANGGRAPH (MEMORY DESTEKLİ)
+# 6. LANGGRAPH
 # -------------------------
-
-# State Tanımı (Artık history de taşıyor)
 class GraphState(TypedDict):
     question: str
     generation: str
     documents: List[Document]
-    chat_history: str  # <--- YENİ: Geçmiş sohbet metni
+    chat_history: str
 
 def retrieve(state):
-    """Belgeleri bulur"""
     print("---RETRIEVE---")
     question = state["question"]
-    if retriever:
-        documents = retriever.invoke(question)
-    else:
-        documents = []
+    documents = retriever.invoke(question) if retriever else []
     return {"documents": documents, "question": question}
 
 def generate(state):
-    """Cevabı üretir"""
     print("---GENERATE---")
-
-    if llm is None:
-        return {"generation": "Hata: Bir yapay zeka modeli seçilmedi veya API anahtarı eksik."}
+    if llm is None: return {"generation": "Hata: Model yok."}
+    
     question = state["question"]
     documents = state["documents"]
-    chat_history = state["chat_history"] # Geçmişi al
+    chat_history = state["chat_history"]
     
-    # Prompt - Artık hafızası var!
+    # RUH KATILMIŞ PROMPT 🏴‍☠️
     system_prompt = (
-        "Sen 'Going-Chaty' One Piece evrenine hakim, neşeli ve yardımsever bir asistansın.\n"
-        "Görevlerin şunlar:\n\n"
-        "1. **SOHBET VE YORUM:** Eğer kullanıcı senin fikrini sorarsa (Örn: 'Hangi meyveyi istersin?', 'En sevdiğin karakter kim?'), "
-        "bağlama bağlı kalmak zorunda değilsin :). Yaratıcı, eğlenceli ve bir One Piece hayranı gibi cevap ver. "
-        "(Örn: 'Gomu Gomu no Mi isterdim çünkü uçmak çok havalı!' gibi).\n\n"
-        "2. **BİLGİ SORULARI:** Eğer kullanıcı dokümanla ilgili teknik veya bilgi içerikli bir soru sorarsa, "
-        "cevabı SADECE aşağıdaki BAĞLAM (Context) bilgisini kullanarak ver.\n\n"
-        "3. **BİLİNMEYEN BİLGİ:** Eğer sorulan *bilgi* bağlamda yoksa dürüstçe 'Bu detay dokümanlarda geçmiyor ama istersen seninle teoriler üzerine konuşabiliriz!' de.\n\n"
+        "Sen 'Going-Chaty' adında, Hasır Şapka ruhuna sahip, neşeli ve sadık bir asistansın. "
+        "Kullanıcıya 'Kaptan' veya 'Nakama' diye hitap edebilirsin.\n\n"
+        "GÖREVLERİN:\n"
+        "1. **Sohbet:** Eğer konu geyik, muhabbet veya senin fikrinse; yaratıcı ol! One Piece terimleri kullan (Haki, Berry, Denizciler vb.). "
+        "Gülüş efektleri kullanmaktan çekinme (Örn: Shishishi, Yohohoho, Zehahaha).\n"
+        "2. **Bilgi:** Eğer Kaptan (kullanıcı) teknik veya PDF ile ilgili bir şey sorarsa, "
+        "ciddileş ve SADECE aşağıdaki BAĞLAM (Context) bilgisini kullanarak net bir cevap ver.\n"
+        "3. **Bilinmeyen:** Bilgi bağlamda yoksa, 'Kaptan, bu bilgi seyir defterimde (PDF) yok ama seninle teoriler üzerine konuşabilirim!' de.\n\n"
         "SOHBET GEÇMİŞİ:\n{chat_history}\n\n"
         "BAĞLAM:\n{context}"
     )
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", "{input}")
-    ])
-    
+    prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
     rag_chain = prompt | llm | StrOutputParser()
-    
     context_text = format_docs_for_prompt(documents)
-    
-    # Zinciri çalıştır
-    generation = rag_chain.invoke({
-        "context": context_text, 
-        "chat_history": chat_history, 
-        "input": question
-    })
-    
+    generation = rag_chain.invoke({"context": context_text, "chat_history": chat_history, "input": question})
     return {"generation": generation}
 
-# Graph Oluşturma
 workflow = StateGraph(GraphState)
 workflow.add_node("retrieve", retrieve)
 workflow.add_node("generate", generate)
@@ -361,79 +423,53 @@ workflow.add_edge("generate", END)
 app_graph = workflow.compile()
 
 # -------------------------
-# 6. ARAYÜZ (CHAT UI)
+# 7. ARAYÜZ (CHAT UI)
 # -------------------------
-st.title("Going-Chaty 👒🍖🏴‍☠️🍈☀️")
+# Rastgele Karşılama Mesajı (Sadece sayfa ilk yüklendiğinde ve mesaj yoksa)
+if not st.session_state.messages:
+    welcome_msg = random.choice(PIRATE_GREETINGS)
+    st.title(f"Going-Chaty 👒 {welcome_msg.split('!')[0]}!")
+else:
+    st.title("Going-Chaty 👒🍖")
 
-# --- GEÇMİŞ MESAJLARI YAZDIR ---
+# Mesajları Göster
 for msg in st.session_state.messages:
-    # İŞTE SIR BURADA: avatar=None diyerek ikonu engelliyoruz
     with st.chat_message(msg["role"], avatar=None):
         if msg["role"] == "user":
-            st.markdown(f"""
-                <div class="user-container">
-                    <div class="user-bubble">{msg['content']}</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f'<div class="user-container"><div class="user-bubble">{msg["content"]}</div></div>', unsafe_allow_html=True)
         else:
-            st.markdown(f"""
-                <div class="bot-container">
-                    <div class="bot-bubble">{msg['content']}</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f'<div class="bot-container"><div class="bot-bubble">{msg["content"]}</div></div>', unsafe_allow_html=True)
 
-# --- YENİ MESAJ GİRİŞİ ---
-user_input = st.chat_input("Sorunuzu yazın...")
+# Input
+user_input = st.chat_input("Grand Line'da bir soru sor...")
 
 if user_input:
-    # 1. Mesajı listeye ekle
     st.session_state.messages.append({"role": "user", "content": user_input})
-    
-    # 2. Ekrana hemen yazdır (Kullanıcı) - BURADA DA avatar=None ŞART
     with st.chat_message("user", avatar=None):
-        st.markdown(f"""
-            <div class="user-container">
-                <div class="user-bubble">{user_input}</div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="user-container"><div class="user-bubble">{user_input}</div></div>', unsafe_allow_html=True)
     
-    # Geçmişi hazırla
     history_text = format_history_for_prompt(st.session_state.messages[:-1])
-
-    # 3. Cevap üret (Asistan) - BURADA DA avatar=None ŞART
+    
     with st.chat_message("assistant", avatar=None):
-        placeholder = st.empty() 
+        placeholder = st.empty()
+        inputs: GraphState = {"question": user_input, "documents": [], "generation": "", "chat_history": history_text}
         
-        try:
-            inputs: GraphState = {
-                "question": user_input,
-                "documents": [],
-                "generation": "",
-                "chat_history": history_text
-            }
-            
-            with st.spinner("Grand Line'da aranıyor..."):
-                result = app_graph.invoke(inputs)
-            
-            answer = result["generation"]
-            source_docs = result["documents"]
-            
-            # Cevabı bas
-            placeholder.markdown(f"""
-                <div class="bot-container">
-                    <div class="bot-bubble">{answer}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # Kaydet
-            st.session_state.messages.append({"role": "assistant", "content": answer})
-            save_chat_history(st.session_state.session_id, st.session_state.messages)
+        # RUH: Rastgele Bekleme Mesajı
+        random_loader = random.choice(LOADING_MESSAGES)
+        with st.spinner(random_loader):
+            result = app_graph.invoke(inputs)
+        
+        answer = result["generation"]
+        source_docs = result["documents"]
+        
+        placeholder.markdown(f'<div class="bot-container"><div class="bot-bubble">{answer}</div></div>', unsafe_allow_html=True)
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+        
+        current_data = load_chat(st.session_state.session_id)
+        current_title = current_data.get("title")
+        save_chat(st.session_state.session_id, st.session_state.messages, title=current_title)
 
-            # Kaynaklar
-            if show_sources and source_docs:
-                with st.expander("📚 Kaynaklar"):
-                    for i, d in enumerate(source_docs, 1):
-                        st.markdown(f"**{i}.** {d.page_content[:200]}...")
-
-        except Exception as e:
-            placeholder.error(f"Hata oluştu: {e}")
+        if show_sources and source_docs:
+            with st.expander("𓂃🪶Seyir Defteri Kayıtları"):
+                for i, d in enumerate(source_docs, 1):
+                    st.markdown(f"**{i}.** {d.page_content[:200]}...")
